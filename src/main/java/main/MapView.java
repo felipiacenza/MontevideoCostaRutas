@@ -1,6 +1,7 @@
 package main;
 
 import javafx.animation.AnimationTimer;
+import javafx.application.Platform;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
@@ -10,7 +11,11 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.control.Label;
 import javafx.scene.paint.Color;
 import mapdata.MapData;
 import mapdata.MapWay;
@@ -27,16 +32,23 @@ import java.util.List;
 import java.util.Set;
 
 public class MapView {
-    private final Canvas canvas;
+    private final Canvas canvasDijkstra;
+    private final Canvas canvasAStar;
+    private final Label infoDijkstra;
+    private final Label infoAStar;
     private final MapData mapData;
     private final RouteService routeService;
     private final BorderPane root;
+    private Stats dijkstraStats = Stats.empty();
+    private Stats aStarStats = Stats.empty();
 
     private static final double MIN_SCALE = 0.2;
     private static final Color BACKGROUND_COLOR = Color.web("#0b0c10");
-    private static final Color MAP_STROKE = Color.web("#b5d8ff"); // pastel light blue
-    private static final Color DIJKSTRA_COLOR = Color.RED;
-    private static final Color ASTAR_COLOR = Color.BLUE;
+    private static final Color MAP_STROKE = Color.web("#2c84cc");
+    private static final Color DIJKSTRA_COLOR = Color.web("#cc2c2c");
+    private static final Color DIJKSTRA_PATH_COLOR = Color.web("#e56969");
+    private static final Color ASTAR_COLOR = Color.web("#3fcc2c");
+    private static final Color ASTAR_PATH_COLOR = Color.web("#74db67");
 
     private double scale = 1.0;
     private double offsetX = 0;
@@ -49,32 +61,60 @@ public class MapView {
     private Point endPoint;
     private RouteResult dijkstraRoute;
     private RouteResult aStarRoute;
+    private SearchAnimation dijkstraAnim;
+    private SearchAnimation aStarAnim;
 
     private Deque<Long> dijkstraSteps = new ArrayDeque<>();
     private Deque<Long> aStarSteps = new ArrayDeque<>();
+    private List<long[]> dijkstraEdges = new ArrayList<>();
+    private List<long[]> aStarEdges = new ArrayList<>();
     private final Set<Long> visitedDijkstra = new HashSet<>();
     private final Set<Long> visitedAStar = new HashSet<>();
     private AnimationTimer animTimer;
     private static final int STEPS_PER_FRAME = 30;
+    private boolean dijkstraDone = false;
+    private boolean aStarDone = false;
 
     public MapView(MapData mapData, RouteService routeService) {
         this.mapData = mapData;
         this.routeService = routeService;
-        this.canvas = new Canvas(1200, 800);
-        StackPane mapPane = new StackPane(canvas);
-        mapPane.widthProperty().addListener((obs, oldV, newV) -> canvas.setWidth(newV.doubleValue()));
-        mapPane.heightProperty().addListener((obs, oldV, newV) -> canvas.setHeight(newV.doubleValue()));
+        this.canvasDijkstra = new Canvas(600, 800);
+        this.canvasAStar = new Canvas(600, 800);
+        this.infoDijkstra = buildInfoLabel("Dijkstra: pendiente");
+        this.infoAStar = buildInfoLabel("A*: pendiente");
 
-        this.root = new BorderPane(mapPane);
+        StackPane leftPane = new StackPane(canvasDijkstra);
+        StackPane rightPane = new StackPane(canvasAStar);
+        leftPane.setBackground(new Background(new BackgroundFill(BACKGROUND_COLOR, null, null)));
+        rightPane.setBackground(new Background(new BackgroundFill(BACKGROUND_COLOR, null, null)));
+        canvasDijkstra.widthProperty().bind(leftPane.widthProperty());
+        canvasDijkstra.heightProperty().bind(leftPane.heightProperty());
+        canvasAStar.widthProperty().bind(rightPane.widthProperty());
+        canvasAStar.heightProperty().bind(rightPane.heightProperty());
+
+        VBox leftBox = new VBox(leftPane, infoDijkstra);
+        VBox rightBox = new VBox(rightPane, infoAStar);
+        VBox.setVgrow(leftPane, Priority.ALWAYS);
+        VBox.setVgrow(rightPane, Priority.ALWAYS);
+        stylePane(leftBox);
+        stylePane(rightBox);
+
+        HBox maps = new HBox(leftBox, rightBox);
+        HBox.setHgrow(leftPane, Priority.ALWAYS);
+        HBox.setHgrow(rightPane, Priority.ALWAYS);
+        HBox.setHgrow(leftBox, Priority.ALWAYS);
+        HBox.setHgrow(rightBox, Priority.ALWAYS);
+        maps.setFillHeight(true);
+        this.root = new BorderPane(maps);
         root.setBackground(new Background(new BackgroundFill(BACKGROUND_COLOR, null, null)));
         root.setFocusTraversable(true);
         root.setOnMouseEntered(e -> root.requestFocus());
         root.setOnKeyPressed(this::handleKeyPress);
 
         centerMap();
-        draw();
         hookEvents();
         setupAnimationTimer();
+        Platform.runLater(this::drawBoth); // ensure draw after layout sizing
     }
 
     public BorderPane getView() {
@@ -82,24 +122,30 @@ public class MapView {
     }
 
     private void hookEvents() {
-        canvas.setOnScroll(this::handleScroll);
-        canvas.setOnMousePressed(e -> {
+        canvasDijkstra.setOnScroll(this::handleScroll);
+        canvasAStar.setOnScroll(this::handleScroll);
+
+        canvasDijkstra.setOnMousePressed(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
                 lastMouseX = e.getX();
                 lastMouseY = e.getY();
             }
         });
-        canvas.setOnMouseDragged(e -> {
+        canvasAStar.setOnMousePressed(canvasDijkstra.getOnMousePressed());
+
+        canvasDijkstra.setOnMouseDragged(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
                 offsetX += e.getX() - lastMouseX;
                 offsetY += e.getY() - lastMouseY;
                 lastMouseX = e.getX();
                 lastMouseY = e.getY();
                 userPanned = true;
-                draw();
+                drawBoth();
             }
         });
-        canvas.setOnMouseClicked(e -> {
+        canvasAStar.setOnMouseDragged(canvasDijkstra.getOnMouseDragged());
+
+        canvasDijkstra.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.SECONDARY) {
                 Point mapPoint = screenToGeo(e.getX(), e.getY());
                 if (startPoint == null) {
@@ -113,38 +159,64 @@ public class MapView {
                     aStarRoute = null;
                 }
                 computeRoute();
-                draw();
+                drawBoth();
             }
         });
-        canvas.widthProperty().addListener((obs, oldV, newV) -> {
+        canvasAStar.setOnMouseClicked(canvasDijkstra.getOnMouseClicked());
+
+        canvasDijkstra.widthProperty().addListener((obs, oldV, newV) -> {
             if (!userPanned) centerMap();
-            draw();
+            drawBoth();
         });
-        canvas.heightProperty().addListener((obs, oldV, newV) -> {
+        canvasDijkstra.heightProperty().addListener((obs, oldV, newV) -> {
             if (!userPanned) centerMap();
-            draw();
+            drawBoth();
+        });
+        canvasAStar.widthProperty().addListener((obs, oldV, newV) -> {
+            if (!userPanned) centerMap();
+            drawBoth();
+        });
+        canvasAStar.heightProperty().addListener((obs, oldV, newV) -> {
+            if (!userPanned) centerMap();
+            drawBoth();
         });
     }
 
     private void computeRoute() {
         if (startPoint != null && endPoint != null) {
             try {
-                SearchAnimation dj = routeService.animateDijkstra(startPoint, endPoint);
-                SearchAnimation as = routeService.animateAStar(startPoint, endPoint);
-                dijkstraRoute = toRouteResult(dj);
-                aStarRoute = toRouteResult(as);
-                dijkstraSteps = new ArrayDeque<>(dj.visitedOrder());
-                aStarSteps = new ArrayDeque<>(as.visitedOrder());
+                dijkstraAnim = routeService.animateDijkstra(startPoint, endPoint);
+                aStarAnim = routeService.animateAStar(startPoint, endPoint);
+                dijkstraRoute = null;
+                aStarRoute = null;
+                dijkstraSteps = new ArrayDeque<>(dijkstraAnim.visitedOrder());
+                aStarSteps = new ArrayDeque<>(aStarAnim.visitedOrder());
+                dijkstraEdges = new ArrayList<>(dijkstraAnim.exploredEdges());
+                aStarEdges = new ArrayList<>(aStarAnim.exploredEdges());
                 visitedDijkstra.clear();
                 visitedAStar.clear();
+                dijkstraDone = false;
+                aStarDone = false;
                 animTimer.start();
+                dijkstraStats = buildStats(dijkstraAnim, true);
+                aStarStats = buildStats(aStarAnim, false);
+                updateInfoLabels();
             } catch (Exception ex) {
                 dijkstraRoute = null;
                 aStarRoute = null;
                 dijkstraSteps.clear();
                 aStarSteps.clear();
+                dijkstraEdges.clear();
+                aStarEdges.clear();
+                dijkstraAnim = null;
+                aStarAnim = null;
                 visitedDijkstra.clear();
                 visitedAStar.clear();
+                dijkstraDone = false;
+                aStarDone = false;
+                dijkstraStats = Stats.empty();
+                aStarStats = Stats.empty();
+                updateInfoLabels();
             }
         }
     }
@@ -157,15 +229,50 @@ public class MapView {
         return new RouteResult(points, anim.result().cost());
     }
 
+    private Stats buildStats(SearchAnimation anim, boolean isDijkstra) {
+        double distance = computePathDistance(anim.result());
+        double time = isDijkstra ? anim.result().cost() : computePathTime(anim.result());
+        int iterations = anim.visitedOrder().size();
+        double avgKmh = time > 0 ? (distance / time) * 3.6 : 0;
+        return new Stats(time, distance, iterations, avgKmh);
+    }
+
+    private double computePathDistance(routing.PathResult result) {
+        double total = 0;
+        List<Long> ids = result.pathNodeIds();
+        for (int i = 0; i < ids.size() - 1; i++) {
+            Point a = routeService.getGraph().node(ids.get(i)).point();
+            Point b = routeService.getGraph().node(ids.get(i + 1)).point();
+            total += routing.Heuristics.haversineMeters(a, b);
+        }
+        return total;
+    }
+
+    private double computePathTime(routing.PathResult result) {
+        double total = 0;
+        List<Long> ids = result.pathNodeIds();
+        for (int i = 0; i < ids.size() - 1; i++) {
+            long from = ids.get(i);
+            long to = ids.get(i + 1);
+            for (routing.Edge e : routeService.getGraph().edgesFrom(from)) {
+                if (e.toId() == to) {
+                    total += e.timeSeconds();
+                    break;
+                }
+            }
+        }
+        return total;
+    }
+
     private void handleKeyPress(KeyEvent e) {
         if (!e.isControlDown()) return;
         if (e.getCode() == KeyCode.PLUS || e.getCode() == KeyCode.EQUALS || e.getCode() == KeyCode.ADD) {
             scale = Math.max(MIN_SCALE, scale * 1.1);
-            draw();
+            drawBoth();
             e.consume();
         } else if (e.getCode() == KeyCode.MINUS || e.getCode() == KeyCode.SUBTRACT) {
             scale = Math.max(MIN_SCALE, scale * 0.9);
-            draw();
+            drawBoth();
             e.consume();
         }
     }
@@ -173,7 +280,7 @@ public class MapView {
     private void handleScroll(ScrollEvent e) {
         double delta = e.getDeltaY() > 0 ? 1.1 : 0.9;
         scale = Math.max(MIN_SCALE, scale * delta);
-        draw();
+        drawBoth();
     }
 
     private void centerMap() {
@@ -181,8 +288,8 @@ public class MapView {
         double maxLat = mapData.maxLat();
         double minLon = mapData.minLon();
         double maxLon = mapData.maxLon();
-        double width = canvas.getWidth();
-        double height = canvas.getHeight();
+        double width = Math.max(canvasDijkstra.getWidth(), 1);
+        double height = Math.max(canvasDijkstra.getHeight(), 1);
         double latRange = maxLat - minLat;
         double lonRange = maxLon - minLon;
         double baseScale = Math.min(width / lonRange, height / latRange);
@@ -194,16 +301,20 @@ public class MapView {
     private Point screenToGeo(double x, double y) {
         double minLat = mapData.minLat();
         double minLon = mapData.minLon();
-        double height = canvas.getHeight();
-        double baseScale = Math.min(canvas.getWidth() / (mapData.maxLon() - minLon), height / (mapData.maxLat() - minLat));
+        double height = canvasDijkstra.getHeight();
+        double baseScale = Math.min(canvasDijkstra.getWidth() / (mapData.maxLon() - minLon), height / (mapData.maxLat() - minLat));
         double s = baseScale * scale;
         double lon = (x - offsetX) / s + minLon;
         double lat = ((height - y) + offsetY) / s + minLat;
         return new Point(lat, lon);
     }
 
-    private void draw() {
-        GraphicsContext gc = canvas.getGraphicsContext2D();
+    private void drawBoth() {
+        drawSingle(canvasDijkstra.getGraphicsContext2D(), canvasDijkstra, true);
+        drawSingle(canvasAStar.getGraphicsContext2D(), canvasAStar, false);
+    }
+
+    private void drawSingle(GraphicsContext gc, Canvas canvas, boolean isDijkstra) {
         gc.setFill(BACKGROUND_COLOR);
         gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
@@ -237,30 +348,30 @@ public class MapView {
             }
         }
 
-        // Draw exploration visited nodes
-        gc.setFill(Color.web("#224488", 0.4));
-        for (Long id : visitedDijkstra) {
-            Point p = routeService.getGraph().node(id).point();
-            double x = (p.lon() - minLon) * s + offsetX;
-            double y = height - (p.lat() - minLat) * s + offsetY;
-            gc.fillOval(x - 2, y - 2, 4, 4);
+        Set<Long> visited = isDijkstra ? visitedDijkstra : visitedAStar;
+        List<long[]> edges = isDijkstra ? dijkstraEdges : aStarEdges;
+        gc.setStroke(isDijkstra ? DIJKSTRA_PATH_COLOR : ASTAR_PATH_COLOR);
+        gc.setLineWidth(2.0);
+        for (long[] e : edges) {
+            if (!visited.contains(e[0])) continue;
+            Point from = routeService.getGraph().node(e[0]).point();
+            Point to = routeService.getGraph().node(e[1]).point();
+            double ax = (from.lon() - minLon) * s + offsetX;
+            double ay = height - (from.lat() - minLat) * s + offsetY;
+            double bx = (to.lon() - minLon) * s + offsetX;
+            double by = height - (to.lat() - minLat) * s + offsetY;
+            gc.strokeLine(ax, ay, bx, by);
         }
-        gc.setFill(Color.web("#2e8b57", 0.4));
-        for (Long id : visitedAStar) {
-            Point p = routeService.getGraph().node(id).point();
-            double x = (p.lon() - minLon) * s + offsetX;
-            double y = height - (p.lat() - minLat) * s + offsetY;
-            gc.fillOval(x - 2, y - 2, 4, 4);
-        }
+        gc.setFill(isDijkstra ? DIJKSTRA_PATH_COLOR : ASTAR_PATH_COLOR);
 
-        if (dijkstraRoute != null) {
+        if (isDijkstra && dijkstraRoute != null && dijkstraDone) {
             gc.setStroke(DIJKSTRA_COLOR);
-            gc.setLineWidth(4.0); // thicker stroke for Dijkstra
+            gc.setLineWidth(6.0);
             drawRoute(gc, dijkstraRoute.points(), s, minLon, minLat, height);
         }
-        if (aStarRoute != null) {
+        if (!isDijkstra && aStarRoute != null && aStarDone) {
             gc.setStroke(ASTAR_COLOR);
-            gc.setLineWidth(4.0); // thicker stroke for A*
+            gc.setLineWidth(6.0);
             drawRoute(gc, aStarRoute.points(), s, minLon, minLat, height);
         }
 
@@ -294,13 +405,13 @@ public class MapView {
     private void setupAnimationTimer() {
         animTimer = new AnimationTimer() {
             private long last = 0;
+
             @Override
             public void handle(long now) {
                 if (last == 0) {
                     last = now;
                     return;
                 }
-                // process a batch each frame to keep it fast but visible
                 int steps = 0;
                 while (steps < STEPS_PER_FRAME && (!dijkstraSteps.isEmpty() || !aStarSteps.isEmpty())) {
                     if (!dijkstraSteps.isEmpty()) {
@@ -311,12 +422,54 @@ public class MapView {
                     }
                     steps++;
                 }
-                draw();
+                if (dijkstraSteps.isEmpty()) dijkstraDone = true;
+                if (aStarSteps.isEmpty()) aStarDone = true;
+                if (dijkstraDone && dijkstraRoute == null && dijkstraAnim != null) {
+                    dijkstraRoute = toRouteResult(dijkstraAnim);
+                }
+                if (aStarDone && aStarRoute == null && aStarAnim != null) {
+                    aStarRoute = toRouteResult(aStarAnim);
+                }
+                if (dijkstraDone) updateInfoLabel(infoDijkstra, dijkstraStats);
+                if (aStarDone) updateInfoLabel(infoAStar, aStarStats);
+                drawBoth();
                 if (dijkstraSteps.isEmpty() && aStarSteps.isEmpty()) {
                     stop();
                     last = 0;
                 }
             }
         };
+    }
+
+    private Label buildInfoLabel(String text) {
+        Label lbl = new Label(text);
+        lbl.setTextFill(Color.WHITE);
+        lbl.setStyle("-fx-padding: 6; -fx-font-size: 12px;");
+        return lbl;
+    }
+
+    private void stylePane(VBox box) {
+        box.setSpacing(4);
+        box.setStyle("-fx-border-color: #4a6fa5; -fx-border-width: 1; -fx-border-radius: 2; -fx-padding: 4;");
+    }
+
+    private void updateInfoLabels() {
+        updateInfoLabel(infoDijkstra, dijkstraStats);
+        updateInfoLabel(infoAStar, aStarStats);
+    }
+
+    private void updateInfoLabel(Label label, Stats stats) {
+        label.setText(String.format("Algoritmo: %s | Tiempo: %.1fs | Distancia: %.1fm | Iteraciones: %d | Velocidad prom.: %.1f km/h",
+                label == infoDijkstra ? "Dijkstra" : "A*",
+                stats.timeSeconds,
+                stats.distanceMeters,
+                stats.iterations,
+                stats.avgKmh));
+    }
+
+    private record Stats(double timeSeconds, double distanceMeters, int iterations, double avgKmh) {
+        static Stats empty() {
+            return new Stats(0, 0, 0, 0);
+        }
     }
 }

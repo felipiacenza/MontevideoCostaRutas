@@ -15,6 +15,7 @@ public class AStar {
         Map<Long, Long> prev = new HashMap<>();
         PriorityQueue<NodeScore> open = new PriorityQueue<>(Comparator.comparingDouble(NodeScore::fScore));
         List<Long> visitedOrder = new ArrayList<>();
+        List<long[]> exploredEdges = new ArrayList<>();
 
         g.put(sourceId, 0.0);
         f.put(sourceId, heuristic(graph, sourceId, targetId));
@@ -29,6 +30,7 @@ public class AStar {
             visitedOrder.add(u);
 
             for (Edge e : graph.edgesFrom(u)) {
+                exploredEdges.add(new long[] { u, e.toId() });
                 double tentativeG = g.get(u) + e.distanceMeters();
                 if (tentativeG < g.getOrDefault(e.toId(), Double.POSITIVE_INFINITY)) {
                     g.put(e.toId(), tentativeG);
@@ -42,7 +44,7 @@ public class AStar {
 
         Double total = g.get(targetId);
         if (total == null || total.isInfinite()) {
-            return new SearchAnimation(new PathResult(Double.POSITIVE_INFINITY, List.of()), visitedOrder);
+            return new SearchAnimation(new PathResult(Double.POSITIVE_INFINITY, List.of()), visitedOrder, exploredEdges);
         }
 
         List<Long> path = new ArrayList<>();
@@ -51,7 +53,7 @@ public class AStar {
             if (at == sourceId) break;
         }
         Collections.reverse(path);
-        return new SearchAnimation(new PathResult(total, path), visitedOrder);
+        return new SearchAnimation(new PathResult(total, path), visitedOrder, exploredEdges);
     }
 
     private double heuristic(Graph g, long fromId, long toId) {
