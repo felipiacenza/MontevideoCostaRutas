@@ -43,12 +43,12 @@ public class MapView {
     private Stats aStarStats = Stats.empty();
 
     private static final double MIN_SCALE = 0.2;
-    private static final Color BACKGROUND_COLOR = Color.web("#0b0c10");
-    private static final Color MAP_STROKE = Color.web("#2c84cc");
-    private static final Color DIJKSTRA_COLOR = Color.web("#cc2c2c");
-    private static final Color DIJKSTRA_PATH_COLOR = Color.web("#e56969");
-    private static final Color ASTAR_COLOR = Color.web("#3fcc2c");
-    private static final Color ASTAR_PATH_COLOR = Color.web("#74db67");
+    private static final Color BACKGROUND_COLOR = Color.BLACK;
+    private static final Color MAP_STROKE = Color.web("#bababa");
+    private static final Color DIJKSTRA_COLOR = Color.web("#185be0");
+    private static final Color DIJKSTRA_PATH_COLOR = Color.web("#74a1fc");
+    private static final Color ASTAR_COLOR = Color.web("#e09d18");
+    private static final Color ASTAR_PATH_COLOR = Color.web("#fccf74");
 
     private double scale = 1.0;
     private double offsetX = 0;
@@ -454,18 +454,23 @@ public class MapView {
         updateInfoLabel(infoAStar, aStarStats);
     }
 
-private void updateInfoLabel(Label label, Stats stats) {
-    label.setText(String.format("Algorithm: %s | Time: %.1fs | Distance: %.1fm | Iterations: %d | Avg speed: %.1f km/h",
-            label == infoDijkstra ? "Dijkstra" : "A*",
-            stats.timeSeconds,
-            stats.distanceMeters,
-            stats.iterations,
-            stats.avgKmh));
-}
+    private void updateInfoLabel(Label label, Stats stats) {
+        label.setText(String.format("Algorithm: %s | Time: %s | Distance: %.1fm | Iterations: %d | Avg speed: %.1f km/h",
+                label == infoDijkstra ? "Dijkstra" : "A*",
+                formatDuration(stats.timeSeconds),
+                stats.distanceMeters,
+                stats.iterations,
+                stats.avgKmh));
+    }
+
+    private String formatDuration(double seconds) {
+        long total = Math.max(0, Math.round(seconds));
+        long minutes = total / 60;
+        long secs = total % 60;
+        return String.format("%dm %02ds", minutes, secs);
+    }
 
     private record Stats(double timeSeconds, double distanceMeters, int iterations, double avgKmh) {
-        static Stats empty() {
-            return new Stats(0, 0, 0, 0);
-        }
+        static Stats empty() { return new Stats(0, 0, 0, 0); }
     }
 }
