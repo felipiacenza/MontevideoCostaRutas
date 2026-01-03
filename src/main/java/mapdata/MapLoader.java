@@ -47,7 +47,6 @@ public class MapLoader {
                             maxSpeed = Double.parseDouble(raw);
                         }
                     } catch (Exception ignored) {
-                        maxSpeed = null;
                     }
                 }
 

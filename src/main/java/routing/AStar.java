@@ -3,9 +3,6 @@ package routing;
 import java.util.*;
 
 public class AStar {
-    public PathResult shortestPath(Graph graph, long sourceId, long targetId) {
-        return shortestPathAnimated(graph, sourceId, targetId).result();
-    }
 
     public SearchAnimation shortestPathAnimated(Graph graph, long sourceId, long targetId) {
         record NodeScore(long id, double fScore) {}
