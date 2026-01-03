@@ -2,35 +2,62 @@ package main;
 
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.ChoiceBox;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import mapdata.MapData;
 import mapdata.MapWay;
 import mapdata.Point;
+import routing.RouteResult;
+import routing.RouteService;
+import routing.RoutingAlgorithm;
 
 import java.util.List;
 
 public class MapView {
     private final Canvas canvas;
     private final MapData mapData;
+    private final RouteService routeService;
+    private final ChoiceBox<RoutingAlgorithm> algoChoice;
+    private final BorderPane root;
+
+    private static final double MIN_SCALE = 0.2;
 
     private double scale = 1.0;
     private double offsetX = 0;
     private double offsetY = 0;
     private double lastMouseX;
     private double lastMouseY;
+    private boolean userPanned = false;
 
-    public MapView(MapData mapData) {
+    private Point startPoint;
+    private Point endPoint;
+    private RouteResult currentRoute;
+
+    public MapView(MapData mapData, RouteService routeService) {
         this.mapData = mapData;
-        this.canvas = new Canvas(1000, 1000);
+        this.routeService = routeService;
+        this.canvas = new Canvas(1500, 600);
+        this.algoChoice = new ChoiceBox<>();
+        algoChoice.getItems().addAll(RoutingAlgorithm.ASTAR, RoutingAlgorithm.DIJKSTRA);
+        algoChoice.setValue(RoutingAlgorithm.ASTAR);
+        this.root = new BorderPane(canvas);
+        root.setTop(algoChoice);
+        root.setFocusTraversable(true);
+        root.setOnMouseEntered(e -> root.requestFocus());
+        root.setOnKeyPressed(this::handleKeyPress);
 
+        centerMap();
         draw();
         hookEvents();
     }
 
-    public Canvas getCanvas() {
-        return canvas;
+    public BorderPane getView() {
+        return root;
     }
 
     private void hookEvents() {
@@ -47,17 +74,89 @@ public class MapView {
                 offsetY += e.getY() - lastMouseY;
                 lastMouseX = e.getX();
                 lastMouseY = e.getY();
+                userPanned = true;
                 draw();
             }
         });
-        canvas.widthProperty().addListener((obs, oldV, newV) -> draw());
-        canvas.heightProperty().addListener((obs, oldV, newV) -> draw());
+        canvas.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.SECONDARY) {
+                Point mapPoint = screenToGeo(e.getX(), e.getY());
+                if (startPoint == null) {
+                    startPoint = mapPoint;
+                } else if (endPoint == null) {
+                    endPoint = mapPoint;
+                } else {
+                    startPoint = mapPoint;
+                    endPoint = null;
+                    currentRoute = null;
+                }
+                computeRoute();
+                draw();
+            }
+        });
+        canvas.widthProperty().addListener((obs, oldV, newV) -> {
+            if (!userPanned) centerMap();
+            draw();
+        });
+        canvas.heightProperty().addListener((obs, oldV, newV) -> {
+            if (!userPanned) centerMap();
+            draw();
+        });
+    }
+
+    private void computeRoute() {
+        if (startPoint != null && endPoint != null) {
+            try {
+                currentRoute = routeService.route(startPoint, endPoint, algoChoice.getValue());
+            } catch (Exception ex) {
+                currentRoute = null;
+            }
+        }
+    }
+
+    private void handleKeyPress(KeyEvent e) {
+        if (!e.isControlDown()) return;
+        if (e.getCode() == KeyCode.PLUS || e.getCode() == KeyCode.EQUALS || e.getCode() == KeyCode.ADD) {
+            scale = Math.max(MIN_SCALE, scale * 1.1);
+            draw();
+            e.consume();
+        } else if (e.getCode() == KeyCode.MINUS || e.getCode() == KeyCode.SUBTRACT) {
+            scale = Math.max(MIN_SCALE, scale * 0.9);
+            draw();
+            e.consume();
+        }
     }
 
     private void handleScroll(ScrollEvent e) {
         double delta = e.getDeltaY() > 0 ? 1.1 : 0.9;
-        scale *= delta;
+        scale = Math.max(MIN_SCALE, scale * delta);
         draw();
+    }
+
+    private void centerMap() {
+        double minLat = mapData.minLat();
+        double maxLat = mapData.maxLat();
+        double minLon = mapData.minLon();
+        double maxLon = mapData.maxLon();
+        double width = canvas.getWidth();
+        double height = canvas.getHeight();
+        double latRange = maxLat - minLat;
+        double lonRange = maxLon - minLon;
+        double baseScale = Math.min(width / lonRange, height / latRange);
+        double s = baseScale * scale;
+        offsetX = (width - lonRange * s) / 2;
+        offsetY = (latRange * s - height) / 2;
+    }
+
+    private Point screenToGeo(double x, double y) {
+        double minLat = mapData.minLat();
+        double minLon = mapData.minLon();
+        double height = canvas.getHeight();
+        double baseScale = Math.min(canvas.getWidth() / (mapData.maxLon() - minLon), height / (mapData.maxLat() - minLat));
+        double s = baseScale * scale;
+        double lon = (x - offsetX) / s + minLon;
+        double lat = ((height - y) + offsetY) / s + minLat;
+        return new Point(lat, lon);
     }
 
     private void draw() {
@@ -94,5 +193,34 @@ public class MapView {
                 gc.strokeLine(ax, ay, bx, by);
             }
         }
+
+        if (currentRoute != null) {
+            gc.setStroke(Color.LIMEGREEN);
+            gc.setLineWidth(2.5);
+            List<Point> pts = currentRoute.points();
+            for (int i = 0; i < pts.size() - 1; i++) {
+                Point a = pts.get(i);
+                Point b = pts.get(i + 1);
+                double ax = (a.lon() - minLon) * s + offsetX;
+                double ay = height - (a.lat() - minLat) * s + offsetY;
+                double bx = (b.lon() - minLon) * s + offsetX;
+                double by = height - (b.lat() - minLat) * s + offsetY;
+                gc.strokeLine(ax, ay, bx, by);
+            }
+        }
+
+        if (startPoint != null) {
+            drawMarker(gc, startPoint, Color.YELLOW, s, minLon, minLat, height);
+        }
+        if (endPoint != null) {
+            drawMarker(gc, endPoint, Color.CYAN, s, minLon, minLat, height);
+        }
+    }
+
+    private void drawMarker(GraphicsContext gc, Point p, Color color, double s, double minLon, double minLat, double height) {
+        double x = (p.lon() - minLon) * s + offsetX;
+        double y = height - (p.lat() - minLat) * s + offsetY;
+        gc.setFill(color);
+        gc.fillOval(x - 4, y - 4, 8, 8);
     }
 }
