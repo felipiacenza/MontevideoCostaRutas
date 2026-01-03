@@ -80,8 +80,8 @@ public class MapView {
         this.routeService = routeService;
         this.canvasDijkstra = new Canvas(600, 800);
         this.canvasAStar = new Canvas(600, 800);
-        this.infoDijkstra = buildInfoLabel("Dijkstra: pendiente");
-        this.infoAStar = buildInfoLabel("A*: pendiente");
+        this.infoDijkstra = buildInfoLabel("Dijkstra: pending");
+        this.infoAStar = buildInfoLabel("A*: pending");
 
         StackPane leftPane = new StackPane(canvasDijkstra);
         StackPane rightPane = new StackPane(canvasAStar);
