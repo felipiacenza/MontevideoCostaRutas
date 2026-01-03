@@ -37,6 +37,7 @@ public class MapLoader {
 
                 JsonNode tags = element.path("tags");
                 String highway = tags.path("highway").asText(null);
+                String oneway = tags.path("oneway").asText(null);
                 Double maxSpeed = null;
                 if (tags.hasNonNull("maxspeed")) {
                     try {
@@ -63,7 +64,7 @@ public class MapLoader {
                     maxLon = Math.max(maxLon, lon);
                 }
                 if (!points.isEmpty()) {
-                    ways.add(new MapWay(id, points, highway, maxSpeed));
+                    ways.add(new MapWay(id, points, highway, maxSpeed, oneway));
                 }
             }
 

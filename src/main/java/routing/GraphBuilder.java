@@ -28,6 +28,7 @@ public class GraphBuilder {
             List<Point> pts = way.geometry();
             double speedKmh = resolveSpeedKmh(way);
             double speedMps = speedKmh * KMH_TO_MPS;
+            boolean oneway = isOneWay(way);
             for (int i = 0; i < pts.size(); i++) {
                 Point p = pts.get(i);
                 long nodeId = pointToNodeId.computeIfAbsent(new PointKey(p), k -> {
@@ -41,7 +42,9 @@ public class GraphBuilder {
                     double distance = Heuristics.haversineMeters(prev, p);
                     double travelSeconds = distance / speedMps;
                     graph.addEdge(prevId, nodeId, travelSeconds, distance);
-                    graph.addEdge(nodeId, prevId, travelSeconds, distance); // bidirectional for now
+                    if (!oneway) {
+                        graph.addEdge(nodeId, prevId, travelSeconds, distance);
+                    }
                 }
             }
         }
@@ -60,6 +63,17 @@ public class GraphBuilder {
             case "tertiary" -> DEFAULT_TERTIARY;
             case "residential" -> DEFAULT_RESIDENTIAL;
             default -> DEFAULT_FALLBACK;
+        };
+    }
+
+    private boolean isOneWay(MapWay way) {
+        String val = way.oneway();
+        if (val == null) return false;
+        val = val.trim().toLowerCase();
+        return switch (val) {
+            case "yes", "true", "1" -> true;
+            case "-1" -> true; // treat as oneway but reverse not handled here
+            default -> false;
         };
     }
 
