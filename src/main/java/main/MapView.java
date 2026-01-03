@@ -1,4 +1,4 @@
-package montevideocostarutas;
+package main;
 
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -59,7 +59,7 @@ public class MapView {
 
     private void draw() {
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setFill(Color.web("#0b0c10"));
+        gc.setFill(Color.BLACK);
         gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
         double minLat = mapData.minLat();
@@ -76,7 +76,7 @@ public class MapView {
         double baseScale = Math.min(width / lonRange, height / latRange);
         double s = baseScale * scale;
 
-        gc.setStroke(Color.web("#66fcf1"));
+        gc.setStroke(Color.LIGHTPINK);
         gc.setLineWidth(1.0);
 
         for (MapWay way : mapData.ways()) {

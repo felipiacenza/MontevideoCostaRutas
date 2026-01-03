@@ -1,4 +1,4 @@
-package montevideocostarutas;
+package main;
 
 import javafx.application.Application;
 import javafx.scene.Scene;

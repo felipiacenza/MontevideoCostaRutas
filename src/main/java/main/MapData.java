@@ -1,4 +1,4 @@
-package montevideocostarutas;
+package main;
 
 import java.util.List;
 
