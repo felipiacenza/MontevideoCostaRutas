@@ -2,7 +2,6 @@ package main;
 
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.ChoiceBox;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
@@ -17,7 +16,6 @@ import mapdata.MapWay;
 import mapdata.Point;
 import routing.RouteResult;
 import routing.RouteService;
-import routing.RoutingAlgorithm;
 
 import java.util.List;
 
@@ -25,11 +23,13 @@ public class MapView {
     private final Canvas canvas;
     private final MapData mapData;
     private final RouteService routeService;
-    private final ChoiceBox<RoutingAlgorithm> algoChoice;
     private final BorderPane root;
 
     private static final double MIN_SCALE = 0.2;
     private static final Color BACKGROUND_COLOR = Color.web("#0b0c10");
+    private static final Color MAP_STROKE = Color.web("#b5d8ff"); // pastel light blue
+    private static final Color DIJKSTRA_COLOR = Color.web("#3399ff");
+    private static final Color ASTAR_COLOR = Color.web("#5ad35a");
 
     private double scale = 1.0;
     private double offsetX = 0;
@@ -40,21 +40,18 @@ public class MapView {
 
     private Point startPoint;
     private Point endPoint;
-    private RouteResult currentRoute;
+    private RouteResult dijkstraRoute;
+    private RouteResult aStarRoute;
 
     public MapView(MapData mapData, RouteService routeService) {
         this.mapData = mapData;
         this.routeService = routeService;
         this.canvas = new Canvas(1200, 800);
-        this.algoChoice = new ChoiceBox<>();
-        algoChoice.getItems().addAll(RoutingAlgorithm.ASTAR, RoutingAlgorithm.DIJKSTRA);
-        algoChoice.setValue(RoutingAlgorithm.ASTAR);
         StackPane mapPane = new StackPane(canvas);
         mapPane.widthProperty().addListener((obs, oldV, newV) -> canvas.setWidth(newV.doubleValue()));
         mapPane.heightProperty().addListener((obs, oldV, newV) -> canvas.setHeight(newV.doubleValue()));
 
         this.root = new BorderPane(mapPane);
-        root.setTop(algoChoice);
         root.setBackground(new Background(new BackgroundFill(BACKGROUND_COLOR, null, null)));
         root.setFocusTraversable(true);
         root.setOnMouseEntered(e -> root.requestFocus());
@@ -97,7 +94,8 @@ public class MapView {
                 } else {
                     startPoint = mapPoint;
                     endPoint = null;
-                    currentRoute = null;
+                    dijkstraRoute = null;
+                    aStarRoute = null;
                 }
                 computeRoute();
                 draw();
@@ -116,9 +114,11 @@ public class MapView {
     private void computeRoute() {
         if (startPoint != null && endPoint != null) {
             try {
-                currentRoute = routeService.route(startPoint, endPoint, algoChoice.getValue());
+                dijkstraRoute = routeService.routeDijkstra(startPoint, endPoint);
+                aStarRoute = routeService.routeAStar(startPoint, endPoint);
             } catch (Exception ex) {
-                currentRoute = null;
+                dijkstraRoute = null;
+                aStarRoute = null;
             }
         }
     }
@@ -187,7 +187,7 @@ public class MapView {
         double baseScale = Math.min(width / lonRange, height / latRange);
         double s = baseScale * scale;
 
-        gc.setStroke(Color.LIGHTPINK);
+        gc.setStroke(MAP_STROKE);
         gc.setLineWidth(1.0);
 
         for (MapWay way : mapData.ways()) {
@@ -203,19 +203,15 @@ public class MapView {
             }
         }
 
-        if (currentRoute != null) {
-            gc.setStroke(Color.LIMEGREEN);
-            gc.setLineWidth(2.5);
-            List<Point> pts = currentRoute.points();
-            for (int i = 0; i < pts.size() - 1; i++) {
-                Point a = pts.get(i);
-                Point b = pts.get(i + 1);
-                double ax = (a.lon() - minLon) * s + offsetX;
-                double ay = height - (a.lat() - minLat) * s + offsetY;
-                double bx = (b.lon() - minLon) * s + offsetX;
-                double by = height - (b.lat() - minLat) * s + offsetY;
-                gc.strokeLine(ax, ay, bx, by);
-            }
+        if (dijkstraRoute != null) {
+            gc.setStroke(DIJKSTRA_COLOR);
+            gc.setLineWidth(15); // thicker stroke for Dijkstra
+            drawRoute(gc, dijkstraRoute.points(), s, minLon, minLat, height);
+        }
+        if (aStarRoute != null) {
+            gc.setStroke(ASTAR_COLOR);
+            gc.setLineWidth(5); // thinner than Dijkstra to compare
+            drawRoute(gc, aStarRoute.points(), s, minLon, minLat, height);
         }
 
         if (startPoint != null) {
@@ -223,6 +219,18 @@ public class MapView {
         }
         if (endPoint != null) {
             drawMarker(gc, endPoint, Color.CYAN, s, minLon, minLat, height);
+        }
+    }
+
+    private void drawRoute(GraphicsContext gc, List<Point> pts, double s, double minLon, double minLat, double height) {
+        for (int i = 0; i < pts.size() - 1; i++) {
+            Point a = pts.get(i);
+            Point b = pts.get(i + 1);
+            double ax = (a.lon() - minLon) * s + offsetX;
+            double ay = height - (a.lat() - minLat) * s + offsetY;
+            double bx = (b.lon() - minLon) * s + offsetX;
+            double by = height - (b.lat() - minLat) * s + offsetY;
+            gc.strokeLine(ax, ay, bx, by);
         }
     }
 

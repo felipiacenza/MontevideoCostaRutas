@@ -15,14 +15,21 @@ public class RouteService {
         this.graph = graph;
     }
 
-    public RouteResult route(Point start, Point end, RoutingAlgorithm algorithm) {
+    public RouteResult routeDijkstra(Point start, Point end) {
+        return routeInternal(start, end, false);
+    }
+
+    public RouteResult routeAStar(Point start, Point end) {
+        return routeInternal(start, end, true);
+    }
+
+    private RouteResult routeInternal(Point start, Point end, boolean useAStar) {
         long startId = nearestNodeId(start).orElseThrow(() -> new IllegalArgumentException("No start node"));
         long endId = nearestNodeId(end).orElseThrow(() -> new IllegalArgumentException("No end node"));
 
-        PathResult pathResult = switch (algorithm) {
-            case ASTAR -> aStar.shortestPath(graph, startId, endId);
-            case DIJKSTRA -> dijkstra.shortestPath(graph, startId, endId);
-        };
+        PathResult pathResult = useAStar
+                ? aStar.shortestPath(graph, startId, endId)
+                : dijkstra.shortestPath(graph, startId, endId);
 
         List<Point> points = new ArrayList<>();
         for (Long nodeId : pathResult.pathNodeIds()) {
