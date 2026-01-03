@@ -5,6 +5,8 @@ import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
+import mapdata.MapData;
+import mapdata.MapLoader;
 
 import java.io.IOException;
 import java.nio.file.Path;

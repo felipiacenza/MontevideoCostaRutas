@@ -5,6 +5,9 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.paint.Color;
+import mapdata.MapData;
+import mapdata.MapWay;
+import mapdata.Point;
 
 import java.util.List;
 
@@ -93,4 +96,3 @@ public class MapView {
         }
     }
 }
-
