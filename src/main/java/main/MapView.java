@@ -1,5 +1,6 @@
 package main;
 
+import javafx.animation.AnimationTimer;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
@@ -16,8 +17,14 @@ import mapdata.MapWay;
 import mapdata.Point;
 import routing.RouteResult;
 import routing.RouteService;
+import routing.SearchAnimation;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MapView {
     private final Canvas canvas;
@@ -43,6 +50,13 @@ public class MapView {
     private RouteResult dijkstraRoute;
     private RouteResult aStarRoute;
 
+    private Deque<Long> dijkstraSteps = new ArrayDeque<>();
+    private Deque<Long> aStarSteps = new ArrayDeque<>();
+    private final Set<Long> visitedDijkstra = new HashSet<>();
+    private final Set<Long> visitedAStar = new HashSet<>();
+    private AnimationTimer animTimer;
+    private static final int STEPS_PER_FRAME = 30;
+
     public MapView(MapData mapData, RouteService routeService) {
         this.mapData = mapData;
         this.routeService = routeService;
@@ -60,6 +74,7 @@ public class MapView {
         centerMap();
         draw();
         hookEvents();
+        setupAnimationTimer();
     }
 
     public BorderPane getView() {
@@ -114,13 +129,32 @@ public class MapView {
     private void computeRoute() {
         if (startPoint != null && endPoint != null) {
             try {
-                dijkstraRoute = routeService.routeDijkstra(startPoint, endPoint);
-                aStarRoute = routeService.routeAStar(startPoint, endPoint);
+                SearchAnimation dj = routeService.animateDijkstra(startPoint, endPoint);
+                SearchAnimation as = routeService.animateAStar(startPoint, endPoint);
+                dijkstraRoute = toRouteResult(dj);
+                aStarRoute = toRouteResult(as);
+                dijkstraSteps = new ArrayDeque<>(dj.visitedOrder());
+                aStarSteps = new ArrayDeque<>(as.visitedOrder());
+                visitedDijkstra.clear();
+                visitedAStar.clear();
+                animTimer.start();
             } catch (Exception ex) {
                 dijkstraRoute = null;
                 aStarRoute = null;
+                dijkstraSteps.clear();
+                aStarSteps.clear();
+                visitedDijkstra.clear();
+                visitedAStar.clear();
             }
         }
+    }
+
+    private RouteResult toRouteResult(SearchAnimation anim) {
+        List<Point> points = new ArrayList<>();
+        for (Long nodeId : anim.result().pathNodeIds()) {
+            points.add(routeService.getGraph().node(nodeId).point());
+        }
+        return new RouteResult(points, anim.result().cost());
     }
 
     private void handleKeyPress(KeyEvent e) {
@@ -203,14 +237,30 @@ public class MapView {
             }
         }
 
+        // Draw exploration visited nodes
+        gc.setFill(Color.web("#224488", 0.4));
+        for (Long id : visitedDijkstra) {
+            Point p = routeService.getGraph().node(id).point();
+            double x = (p.lon() - minLon) * s + offsetX;
+            double y = height - (p.lat() - minLat) * s + offsetY;
+            gc.fillOval(x - 2, y - 2, 4, 4);
+        }
+        gc.setFill(Color.web("#2e8b57", 0.4));
+        for (Long id : visitedAStar) {
+            Point p = routeService.getGraph().node(id).point();
+            double x = (p.lon() - minLon) * s + offsetX;
+            double y = height - (p.lat() - minLat) * s + offsetY;
+            gc.fillOval(x - 2, y - 2, 4, 4);
+        }
+
         if (dijkstraRoute != null) {
             gc.setStroke(DIJKSTRA_COLOR);
-            gc.setLineWidth(4);
+            gc.setLineWidth(4.0); // thicker stroke for Dijkstra
             drawRoute(gc, dijkstraRoute.points(), s, minLon, minLat, height);
         }
         if (aStarRoute != null) {
             gc.setStroke(ASTAR_COLOR);
-            gc.setLineWidth(4);
+            gc.setLineWidth(4.0); // thicker stroke for A*
             drawRoute(gc, aStarRoute.points(), s, minLon, minLat, height);
         }
 
@@ -239,5 +289,34 @@ public class MapView {
         double y = height - (p.lat() - minLat) * s + offsetY;
         gc.setFill(color);
         gc.fillOval(x - 4, y - 4, 8, 8);
+    }
+
+    private void setupAnimationTimer() {
+        animTimer = new AnimationTimer() {
+            private long last = 0;
+            @Override
+            public void handle(long now) {
+                if (last == 0) {
+                    last = now;
+                    return;
+                }
+                // process a batch each frame to keep it fast but visible
+                int steps = 0;
+                while (steps < STEPS_PER_FRAME && (!dijkstraSteps.isEmpty() || !aStarSteps.isEmpty())) {
+                    if (!dijkstraSteps.isEmpty()) {
+                        visitedDijkstra.add(dijkstraSteps.poll());
+                    }
+                    if (!aStarSteps.isEmpty()) {
+                        visitedAStar.add(aStarSteps.poll());
+                    }
+                    steps++;
+                }
+                draw();
+                if (dijkstraSteps.isEmpty() && aStarSteps.isEmpty()) {
+                    stop();
+                    last = 0;
+                }
+            }
+        };
     }
 }

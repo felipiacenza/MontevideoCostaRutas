@@ -15,12 +15,24 @@ public class RouteService {
         this.graph = graph;
     }
 
+    public Graph getGraph() {
+        return graph;
+    }
+
     public RouteResult routeDijkstra(Point start, Point end) {
         return routeInternal(start, end, false);
     }
 
     public RouteResult routeAStar(Point start, Point end) {
         return routeInternal(start, end, true);
+    }
+
+    public SearchAnimation animateDijkstra(Point start, Point end) {
+        return animateInternal(start, end, false);
+    }
+
+    public SearchAnimation animateAStar(Point start, Point end) {
+        return animateInternal(start, end, true);
     }
 
     private RouteResult routeInternal(Point start, Point end, boolean useAStar) {
@@ -36,6 +48,15 @@ public class RouteService {
             points.add(graph.node(nodeId).point());
         }
         return new RouteResult(points, pathResult.cost());
+    }
+
+    private SearchAnimation animateInternal(Point start, Point end, boolean useAStar) {
+        long startId = nearestNodeId(start).orElseThrow(() -> new IllegalArgumentException("No start node"));
+        long endId = nearestNodeId(end).orElseThrow(() -> new IllegalArgumentException("No end node"));
+
+        return useAStar
+                ? aStar.shortestPathAnimated(graph, startId, endId)
+                : dijkstra.shortestPathAnimated(graph, startId, endId);
     }
 
     private Optional<Long> nearestNodeId(Point target) {
