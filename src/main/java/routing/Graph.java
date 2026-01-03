@@ -11,12 +11,12 @@ public class Graph {
         adjacency.computeIfAbsent(node.id(), k -> new ArrayList<>());
     }
 
-    public void addEdge(long fromId, long toId, double weightMeters) {
+    public void addEdge(long fromId, long toId, double weightSeconds) {
         if (!nodes.containsKey(fromId) || !nodes.containsKey(toId)) {
             throw new IllegalArgumentException("Both nodes must exist before adding an edge");
         }
         adjacency.computeIfAbsent(fromId, k -> new ArrayList<>())
-                 .add(new Edge(fromId, toId, weightMeters));
+                 .add(new Edge(fromId, toId, weightSeconds));
     }
 
     public Collection<Node> nodes() {
@@ -31,4 +31,3 @@ public class Graph {
         return adjacency.getOrDefault(nodeId, List.of());
     }
 }
-

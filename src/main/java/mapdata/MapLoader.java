@@ -35,6 +35,21 @@ public class MapLoader {
                 JsonNode geometry = element.get("geometry");
                 if (geometry == null || !geometry.isArray()) continue;
 
+                JsonNode tags = element.path("tags");
+                String highway = tags.path("highway").asText(null);
+                Double maxSpeed = null;
+                if (tags.hasNonNull("maxspeed")) {
+                    try {
+                        String raw = tags.get("maxspeed").asText();
+                        raw = raw.replaceAll("[^0-9.]", "");
+                        if (!raw.isBlank()) {
+                            maxSpeed = Double.parseDouble(raw);
+                        }
+                    } catch (Exception ignored) {
+                        maxSpeed = null;
+                    }
+                }
+
                 List<Point> points = new ArrayList<>();
                 Iterator<JsonNode> iter = geometry.elements();
                 while (iter.hasNext()) {
@@ -48,7 +63,7 @@ public class MapLoader {
                     maxLon = Math.max(maxLon, lon);
                 }
                 if (!points.isEmpty()) {
-                    ways.add(new MapWay(id, points));
+                    ways.add(new MapWay(id, points, highway, maxSpeed));
                 }
             }
 

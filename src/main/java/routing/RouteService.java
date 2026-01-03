@@ -28,7 +28,7 @@ public class RouteService {
         for (Long nodeId : pathResult.pathNodeIds()) {
             points.add(graph.node(nodeId).point());
         }
-        return new RouteResult(points, pathResult.costMeters());
+        return new RouteResult(points, pathResult.costSeconds());
     }
 
     private Optional<Long> nearestNodeId(Point target) {

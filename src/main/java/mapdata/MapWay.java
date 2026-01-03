@@ -2,5 +2,5 @@ package mapdata;
 
 import java.util.List;
 
-public record MapWay(long id, List<Point> geometry) {
+public record MapWay(long id, List<Point> geometry, String highway, Double maxSpeedKmh) {
 }
