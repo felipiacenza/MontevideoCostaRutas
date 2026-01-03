@@ -337,15 +337,7 @@ public class MapView {
 
         for (MapWay way : mapData.ways()) {
             List<Point> pts = way.geometry();
-            for (int i = 0; i < pts.size() - 1; i++) {
-                Point a = pts.get(i);
-                Point b = pts.get(i + 1);
-                double ax = (a.lon() - minLon) * s + offsetX;
-                double ay = height - (a.lat() - minLat) * s + offsetY;
-                double bx = (b.lon() - minLon) * s + offsetX;
-                double by = height - (b.lat() - minLat) * s + offsetY;
-                gc.strokeLine(ax, ay, bx, by);
-            }
+            drawPolyline(gc, minLat, minLon, height, s, pts);
         }
 
         Set<Long> visited = isDijkstra ? visitedDijkstra : visitedAStar;
@@ -356,11 +348,7 @@ public class MapView {
             if (!visited.contains(e[0])) continue;
             Point from = routeService.getGraph().node(e[0]).point();
             Point to = routeService.getGraph().node(e[1]).point();
-            double ax = (from.lon() - minLon) * s + offsetX;
-            double ay = height - (from.lat() - minLat) * s + offsetY;
-            double bx = (to.lon() - minLon) * s + offsetX;
-            double by = height - (to.lat() - minLat) * s + offsetY;
-            gc.strokeLine(ax, ay, bx, by);
+            pointToScreenX(gc, minLat, minLon, height, s, from, to);
         }
         gc.setFill(isDijkstra ? DIJKSTRA_PATH_COLOR : ASTAR_PATH_COLOR);
 
@@ -383,16 +371,24 @@ public class MapView {
         }
     }
 
-    private void drawRoute(GraphicsContext gc, List<Point> pts, double s, double minLon, double minLat, double height) {
+    private void pointToScreenX(GraphicsContext gc, double minLat, double minLon, double height, double s, Point from, Point to) {
+        double ax = (from.lon() - minLon) * s + offsetX;
+        double ay = height - (from.lat() - minLat) * s + offsetY;
+        double bx = (to.lon() - minLon) * s + offsetX;
+        double by = height - (to.lat() - minLat) * s + offsetY;
+        gc.strokeLine(ax, ay, bx, by);
+    }
+
+    private void drawPolyline(GraphicsContext gc, double minLat, double minLon, double height, double s, List<Point> pts) {
         for (int i = 0; i < pts.size() - 1; i++) {
             Point a = pts.get(i);
             Point b = pts.get(i + 1);
-            double ax = (a.lon() - minLon) * s + offsetX;
-            double ay = height - (a.lat() - minLat) * s + offsetY;
-            double bx = (b.lon() - minLon) * s + offsetX;
-            double by = height - (b.lat() - minLat) * s + offsetY;
-            gc.strokeLine(ax, ay, bx, by);
+            pointToScreenX(gc, minLat, minLon, height, s, a, b);
         }
+    }
+
+    private void drawRoute(GraphicsContext gc, List<Point> pts, double s, double minLon, double minLat, double height) {
+        drawPolyline(gc, minLat, minLon, height, s, pts);
     }
 
     private void drawMarker(GraphicsContext gc, Point p, Color color, double s, double minLon, double minLat, double height) {
@@ -458,14 +454,14 @@ public class MapView {
         updateInfoLabel(infoAStar, aStarStats);
     }
 
-    private void updateInfoLabel(Label label, Stats stats) {
-        label.setText(String.format("Algoritmo: %s | Tiempo: %.1fs | Distancia: %.1fm | Iteraciones: %d | Velocidad prom.: %.1f km/h",
-                label == infoDijkstra ? "Dijkstra" : "A*",
-                stats.timeSeconds,
-                stats.distanceMeters,
-                stats.iterations,
-                stats.avgKmh));
-    }
+private void updateInfoLabel(Label label, Stats stats) {
+    label.setText(String.format("Algorithm: %s | Time: %.1fs | Distance: %.1fm | Iterations: %d | Avg speed: %.1f km/h",
+            label == infoDijkstra ? "Dijkstra" : "A*",
+            stats.timeSeconds,
+            stats.distanceMeters,
+            stats.iterations,
+            stats.avgKmh));
+}
 
     private record Stats(double timeSeconds, double distanceMeters, int iterations, double avgKmh) {
         static Stats empty() {

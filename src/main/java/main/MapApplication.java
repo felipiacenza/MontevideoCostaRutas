@@ -34,7 +34,7 @@ public class MapApplication extends Application {
         double height = Math.max(700, bounds.getHeight() * 0.8);
         Scene scene = new Scene(root, width, height, Color.web("#0b0c10"));
 
-        stage.setTitle("Mapa Montevideo & Ciudad de la Costa");
+        stage.setTitle("Montevideo & Ciudad de la Costa Map");
         stage.setScene(scene);
         stage.show();
     }
