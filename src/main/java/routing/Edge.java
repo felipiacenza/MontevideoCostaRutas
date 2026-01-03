@@ -1,2 +1,2 @@
 package routing;
-public record Edge(long fromId, long toId, double weightSeconds) {}
+public record Edge(long fromId, long toId, double timeSeconds, double distanceMeters) {}

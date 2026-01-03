@@ -22,7 +22,7 @@ public class AStar {
             if (current.fScore > f.getOrDefault(u, Double.POSITIVE_INFINITY)) continue;
 
             for (Edge e : graph.edgesFrom(u)) {
-                double tentativeG = g.get(u) + e.weightSeconds();
+                double tentativeG = g.get(u) + e.distanceMeters();
                 if (tentativeG < g.getOrDefault(e.toId(), Double.POSITIVE_INFINITY)) {
                     g.put(e.toId(), tentativeG);
                     prev.put(e.toId(), u);
@@ -48,9 +48,6 @@ public class AStar {
     }
 
     private double heuristic(Graph g, long fromId, long toId) {
-        // Admissible: divide straight-line distance by a fast-but-safe speed (90 km/h)
-        double distance = Heuristics.haversineMeters(g.node(fromId).point(), g.node(toId).point());
-        double maxReasonableSpeedMps = 25.0; // ~90 km/h
-        return distance / maxReasonableSpeedMps;
+        return Heuristics.haversineMeters(g.node(fromId).point(), g.node(toId).point());
     }
 }

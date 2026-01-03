@@ -40,8 +40,8 @@ public class GraphBuilder {
                     long prevId = pointToNodeId.get(new PointKey(prev));
                     double distance = Heuristics.haversineMeters(prev, p);
                     double travelSeconds = distance / speedMps;
-                    graph.addEdge(prevId, nodeId, travelSeconds);
-                    graph.addEdge(nodeId, prevId, travelSeconds); // bidirectional for now
+                    graph.addEdge(prevId, nodeId, travelSeconds, distance);
+                    graph.addEdge(nodeId, prevId, travelSeconds, distance); // bidirectional for now
                 }
             }
         }

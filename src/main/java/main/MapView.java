@@ -28,8 +28,8 @@ public class MapView {
     private static final double MIN_SCALE = 0.2;
     private static final Color BACKGROUND_COLOR = Color.web("#0b0c10");
     private static final Color MAP_STROKE = Color.web("#b5d8ff"); // pastel light blue
-    private static final Color DIJKSTRA_COLOR = Color.web("#3399ff");
-    private static final Color ASTAR_COLOR = Color.web("#5ad35a");
+    private static final Color DIJKSTRA_COLOR = Color.RED;
+    private static final Color ASTAR_COLOR = Color.BLUE;
 
     private double scale = 1.0;
     private double offsetX = 0;
@@ -205,12 +205,12 @@ public class MapView {
 
         if (dijkstraRoute != null) {
             gc.setStroke(DIJKSTRA_COLOR);
-            gc.setLineWidth(15); // thicker stroke for Dijkstra
+            gc.setLineWidth(4);
             drawRoute(gc, dijkstraRoute.points(), s, minLon, minLat, height);
         }
         if (aStarRoute != null) {
             gc.setStroke(ASTAR_COLOR);
-            gc.setLineWidth(5); // thinner than Dijkstra to compare
+            gc.setLineWidth(4);
             drawRoute(gc, aStarRoute.points(), s, minLon, minLat, height);
         }
 

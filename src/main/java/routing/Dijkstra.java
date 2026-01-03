@@ -19,7 +19,7 @@ public class Dijkstra {
             if (current.dist > dist.getOrDefault(current.id, Double.POSITIVE_INFINITY)) continue;
 
             for (Edge e : graph.edgesFrom(current.id)) {
-                double alt = current.dist + e.weightSeconds();
+                double alt = current.dist + e.timeSeconds();
                 if (alt < dist.getOrDefault(e.toId(), Double.POSITIVE_INFINITY)) {
                     dist.put(e.toId(), alt);
                     prev.put(e.toId(), current.id);

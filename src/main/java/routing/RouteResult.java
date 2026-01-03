@@ -4,5 +4,5 @@ import mapdata.Point;
 
 import java.util.List;
 
-public record RouteResult(List<Point> points, double travelSeconds) {
+public record RouteResult(List<Point> points, double cost) {
 }
