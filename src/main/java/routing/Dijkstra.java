@@ -1,0 +1,45 @@
+package routing;
+
+import java.util.*;
+
+public class Dijkstra {
+    public PathResult shortestPath(Graph graph, long sourceId, long targetId) {
+        record NodeDist(long id, double dist) {}
+
+        Map<Long, Double> dist = new HashMap<>();
+        Map<Long, Long> prev = new HashMap<>();
+        PriorityQueue<NodeDist> pq = new PriorityQueue<>(Comparator.comparingDouble(NodeDist::dist));
+
+        dist.put(sourceId, 0.0);
+        pq.add(new NodeDist(sourceId, 0.0));
+
+        while (!pq.isEmpty()) {
+            NodeDist current = pq.poll();
+            if (current.id == targetId) break;
+            if (current.dist > dist.getOrDefault(current.id, Double.POSITIVE_INFINITY)) continue;
+
+            for (Edge e : graph.edgesFrom(current.id)) {
+                double alt = current.dist + e.weightMeters();
+                if (alt < dist.getOrDefault(e.toId(), Double.POSITIVE_INFINITY)) {
+                    dist.put(e.toId(), alt);
+                    prev.put(e.toId(), current.id);
+                    pq.add(new NodeDist(e.toId(), alt));
+                }
+            }
+        }
+
+        Double total = dist.get(targetId);
+        if (total == null || total.isInfinite()) {
+            return new PathResult(Double.POSITIVE_INFINITY, List.of());
+        }
+
+        List<Long> path = new ArrayList<>();
+        for (Long at = targetId; at != null; at = prev.get(at)) {
+            path.add(at);
+            if (at == sourceId) break;
+        }
+        Collections.reverse(path);
+        return new PathResult(total, path);
+    }
+}
+
