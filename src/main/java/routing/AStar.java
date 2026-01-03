@@ -5,7 +5,8 @@ import java.util.*;
 public class AStar {
 
     public SearchAnimation shortestPathAnimated(Graph graph, long sourceId, long targetId) {
-        record NodeScore(long id, double fScore) {}
+        record NodeScore(long id, double fScore) {
+        }
 
         Map<Long, Double> g = new HashMap<>();
         Map<Long, Double> f = new HashMap<>();
@@ -18,27 +19,40 @@ public class AStar {
         f.put(sourceId, heuristic(graph, sourceId, targetId));
         open.add(new NodeScore(sourceId, f.get(sourceId)));
 
+        Set<Long> closed = new HashSet<>();
+
         while (!open.isEmpty()) {
             NodeScore current = open.poll();
             long u = current.id;
+
+            if (closed.contains(u)) continue;
+            closed.add(u);
+
             if (u == targetId) break;
-            if (current.fScore > f.getOrDefault(u, Double.POSITIVE_INFINITY)) continue;
 
             visitedOrder.add(u);
 
             for (Edge e : graph.edgesFrom(u)) {
-                exploredEdges.add(new long[] { u, e.toId() });
+                exploredEdges.add(new long[]{u, e.toId()});
+
                 double tentativeG = g.get(u) + e.distanceMeters();
                 if (tentativeG < g.getOrDefault(e.toId(), Double.POSITIVE_INFINITY)) {
                     g.put(e.toId(), tentativeG);
                     prev.put(e.toId(), u);
-                    double newF = tentativeG + heuristic(graph, e.toId(), targetId);
+
+                    double newF = tentativeG + 1.3 * heuristic(graph, e.toId(), targetId);
+
                     f.put(e.toId(), newF);
                     open.add(new NodeScore(e.toId(), newF));
                 }
             }
         }
 
+
+        return getSearchAnimation(sourceId, targetId, g, prev, visitedOrder, exploredEdges);
+    }
+
+    static SearchAnimation getSearchAnimation(long sourceId, long targetId, Map<Long, Double> g, Map<Long, Long> prev, List<Long> visitedOrder, List<long[]> exploredEdges) {
         Double total = g.get(targetId);
         if (total == null || total.isInfinite()) {
             return new SearchAnimation(new PathResult(Double.POSITIVE_INFINITY, List.of()), visitedOrder, exploredEdges);

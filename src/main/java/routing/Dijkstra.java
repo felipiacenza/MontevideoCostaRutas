@@ -2,10 +2,13 @@ package routing;
 
 import java.util.*;
 
+import static routing.AStar.getSearchAnimation;
+
 public class Dijkstra {
 
     public SearchAnimation shortestPathAnimated(Graph graph, long sourceId, long targetId) {
-        record NodeDist(long id, double dist) {}
+        record NodeDist(long id, double dist) {
+        }
 
         Map<Long, Double> dist = new HashMap<>();
         Map<Long, Long> prev = new HashMap<>();
@@ -24,7 +27,7 @@ public class Dijkstra {
             visitedOrder.add(current.id);
 
             for (Edge e : graph.edgesFrom(current.id)) {
-                exploredEdges.add(new long[] { current.id, e.toId() });
+                exploredEdges.add(new long[]{current.id, e.toId()});
                 double alt = current.dist + e.timeSeconds();
                 if (alt < dist.getOrDefault(e.toId(), Double.POSITIVE_INFINITY)) {
                     dist.put(e.toId(), alt);
@@ -34,17 +37,6 @@ public class Dijkstra {
             }
         }
 
-        Double total = dist.get(targetId);
-        if (total == null || total.isInfinite()) {
-            return new SearchAnimation(new PathResult(Double.POSITIVE_INFINITY, List.of()), visitedOrder, exploredEdges);
-        }
-
-        List<Long> path = new ArrayList<>();
-        for (Long at = targetId; at != null; at = prev.get(at)) {
-            path.add(at);
-            if (at == sourceId) break;
-        }
-        Collections.reverse(path);
-        return new SearchAnimation(new PathResult(total, path), visitedOrder, exploredEdges);
+        return getSearchAnimation(sourceId, targetId, dist, prev, visitedOrder, exploredEdges);
     }
 }
