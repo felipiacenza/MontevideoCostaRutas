@@ -1,9 +1,11 @@
 package main;
 
 import javafx.application.Application;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import mapdata.MapData;
 import mapdata.MapLoader;
@@ -27,11 +29,17 @@ public class MapApplication extends Application {
         MapView mapView = new MapView(mapData, routeService);
 
         BorderPane root = mapView.getView();
-        Scene scene = new Scene(root, 1500, 600, Color.web("#0b0c10"));
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        double width = Math.max(1000, bounds.getWidth() * 0.8);
+        double height = Math.max(700, bounds.getHeight() * 0.8);
+        Scene scene = new Scene(root, width, height, Color.web("#0b0c10"));
 
         stage.setTitle("Mapa Montevideo & Ciudad de la Costa");
         stage.setScene(scene);
         stage.show();
     }
 
+    public static void main(String[] args) {
+        launch();
+    }
 }

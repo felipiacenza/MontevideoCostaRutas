@@ -7,7 +7,10 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import mapdata.MapData;
 import mapdata.MapWay;
@@ -26,6 +29,7 @@ public class MapView {
     private final BorderPane root;
 
     private static final double MIN_SCALE = 0.2;
+    private static final Color BACKGROUND_COLOR = Color.web("#0b0c10");
 
     private double scale = 1.0;
     private double offsetX = 0;
@@ -41,12 +45,17 @@ public class MapView {
     public MapView(MapData mapData, RouteService routeService) {
         this.mapData = mapData;
         this.routeService = routeService;
-        this.canvas = new Canvas(1500, 600);
+        this.canvas = new Canvas(1200, 800);
         this.algoChoice = new ChoiceBox<>();
         algoChoice.getItems().addAll(RoutingAlgorithm.ASTAR, RoutingAlgorithm.DIJKSTRA);
         algoChoice.setValue(RoutingAlgorithm.ASTAR);
-        this.root = new BorderPane(canvas);
+        StackPane mapPane = new StackPane(canvas);
+        mapPane.widthProperty().addListener((obs, oldV, newV) -> canvas.setWidth(newV.doubleValue()));
+        mapPane.heightProperty().addListener((obs, oldV, newV) -> canvas.setHeight(newV.doubleValue()));
+
+        this.root = new BorderPane(mapPane);
         root.setTop(algoChoice);
+        root.setBackground(new Background(new BackgroundFill(BACKGROUND_COLOR, null, null)));
         root.setFocusTraversable(true);
         root.setOnMouseEntered(e -> root.requestFocus());
         root.setOnKeyPressed(this::handleKeyPress);
@@ -161,7 +170,7 @@ public class MapView {
 
     private void draw() {
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setFill(Color.BLACK);
+        gc.setFill(BACKGROUND_COLOR);
         gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
         double minLat = mapData.minLat();
